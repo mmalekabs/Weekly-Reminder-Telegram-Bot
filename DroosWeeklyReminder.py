@@ -1,9 +1,8 @@
 import logging
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
-import pytz
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters,
@@ -15,7 +14,8 @@ BOT_TOKEN = "8496542750:AAERB_yV3t_LJw8FUUTcyUCtespOqlHKEy4"
 SETTINGS_FILE = "group_settings.json"
 
 # --- SCHEDULER WITH RIYADH TIMEZONE ---
-riyadh_tz = pytz.timezone('Asia/Riyadh')
+# Riyadh is UTC+3
+riyadh_tz = timezone(timedelta(hours=3))
 scheduler = BackgroundScheduler(timezone=riyadh_tz)
 scheduler.start()
 
