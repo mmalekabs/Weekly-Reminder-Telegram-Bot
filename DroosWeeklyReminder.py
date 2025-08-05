@@ -59,9 +59,10 @@ def schedule_message(context, chat_id, settings):
         async def send_message():
             try:
                 await bot.send_message(chat_id=chat_id, text=message)
+                logger.info(f"Message sent successfully to {chat_id}")
             except Exception as e:
                 logger.error(f"Failed to send message: {e}")
-        
+
         # Run in a new event loop
         try:
             asyncio.run(send_message())
