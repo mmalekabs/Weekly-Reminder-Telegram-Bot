@@ -3,6 +3,7 @@ import json
 import asyncio
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+import pytz
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters,
@@ -13,8 +14,9 @@ from telegram.ext import (
 BOT_TOKEN = "8496542750:AAERB_yV3t_LJw8FUUTcyUCtespOqlHKEy4"
 SETTINGS_FILE = "group_settings.json"
 
-# --- SCHEDULER ---
-scheduler = BackgroundScheduler()
+# --- SCHEDULER WITH RIYADH TIMEZONE ---
+riyadh_tz = pytz.timezone('Asia/Riyadh')
+scheduler = BackgroundScheduler(timezone=riyadh_tz)
 scheduler.start()
 
 # --- LOGGING ---
@@ -25,6 +27,17 @@ logger = logging.getLogger(__name__)
 (
     CHOOSING_REPEAT, CHOOSING_DAY, SETTING_MESSAGE, CHOOSING_TIME
 ) = range(4)
+
+# --- WEEKDAY MAPPING ---
+WEEKDAY_MAP = {
+    "monday": "mon",
+    "tuesday": "tue", 
+    "wednesday": "wed",
+    "thursday": "thu",
+    "friday": "fri",
+    "saturday": "sat",
+    "sunday": "sun"
+}
 
 # --- STORAGE ---
 def load_settings():
@@ -80,6 +93,7 @@ def schedule_message(context, chat_id, settings):
     elif repeat == "custom":
         for d in settings["days"]:
             scheduler.add_job(send_msg, "cron", day_of_week=d, hour=hour, minute=minute, id=f"{job_id}_{d}")
+
 # --- COMMANDS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -115,7 +129,12 @@ async def choose_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     repeat = context.user_data["repeat"]
     day = update.message.text.lower()
     if repeat == "weekly":
-        context.user_data["day"] = day
+        # Convert to short form
+        day_short = WEEKDAY_MAP.get(day)
+        if not day_short:
+            await update.message.reply_text("Please enter a valid weekday (e.g., Monday).")
+            return CHOOSING_DAY
+        context.user_data["day"] = day_short
     elif repeat == "monthly":
         try:
             context.user_data["day"] = int(day)
@@ -123,14 +142,21 @@ async def choose_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Please enter a valid day of the month (1-31).")
             return CHOOSING_DAY
     elif repeat == "custom":
-        days = [d.strip() for d in day.split(",")]
-        context.user_data["days"] = days
+        days = [d.strip().lower() for d in day.split(",")]
+        days_short = []
+        for d in days:
+            short = WEEKDAY_MAP.get(d)
+            if not short:
+                await update.message.reply_text(f"Invalid weekday: {d}. Please use names like Monday, Thursday, etc.")
+                return CHOOSING_DAY
+            days_short.append(short)
+        context.user_data["days"] = days_short
     await update.message.reply_text("What message should I send?")
     return SETTING_MESSAGE
 
 async def set_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["message"] = update.message.text
-    await update.message.reply_text("At what time? (HH:MM, 24h format)")
+    await update.message.reply_text("At what time? (HH:MM, 24h format - Riyadh time)")
     return CHOOSING_TIME
 
 async def choose_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -160,7 +186,7 @@ async def choose_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group_settings[str(chat_id)] = settings
     save_settings(group_settings)
     schedule_message(context, chat_id, settings)
-    await update.message.reply_text("Schedule set! I'll send your message as requested.")
+    await update.message.reply_text(f"Schedule set! I'll send your message at {t} Riyadh time as requested.")
     return ConversationHandler.END
 
 async def modify(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -173,7 +199,7 @@ async def show_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No schedule set. Use /setday to create one.")
     else:
         pretty = json.dumps(settings, indent=2, ensure_ascii=False)
-        await update.message.reply_text(f"Current settings:\n{pretty}")
+        await update.message.reply_text(f"Current settings (Riyadh time):\n{pretty}")
 
 async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
