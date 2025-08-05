@@ -9,6 +9,8 @@ from telegram.ext import (
     ContextTypes, ConversationHandler
 )
 
+from telegram.request import HTTPXRequest
+
 # --- CONFIGURATION ---
 BOT_TOKEN = "8496542750:AAERB_yV3t_LJw8FUUTcyUCtespOqlHKEy4"
 SETTINGS_FILE = "group_settings.json"
@@ -209,30 +211,39 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
 
 # --- MAIN ---
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("setday", setday)],
-        states={
-            CHOOSING_REPEAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_repeat)],
-            CHOOSING_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_day)],
-            SETTING_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_message)],
-            CHOOSING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_time)],
-        },
-        fallbacks=[CommandHandler("setday", setday)],
-    )
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(conv_handler)
-    app.add_handler(CommandHandler("modify", modify))
-    app.add_handler(CommandHandler("settings", show_settings))
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))
-
-    # Reschedule jobs on restart
-    for chat_id, settings in group_settings.items():
-        schedule_message(app, int(chat_id), settings)
-
+def main():  
+    # Configure request with longer timeout and retry  
+    request = HTTPXRequest(  
+        connection_pool_size=8,  
+        read_timeout=30,  
+        write_timeout=30,  
+        connect_timeout=30,  
+        pool_timeout=30  
+    )  
+      
+    app = ApplicationBuilder().token(BOT_TOKEN).request(request).build()  
+  
+    conv_handler = ConversationHandler(  
+        entry_points=[CommandHandler("setday", setday)],  
+        states={  
+            CHOOSING_REPEAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_repeat)],  
+            CHOOSING_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_day)],  
+            SETTING_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_message)],  
+            CHOOSING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_time)],  
+        },  
+        fallbacks=[CommandHandler("setday", setday)],  
+    )  
+  
+    app.add_handler(CommandHandler("start", start))  
+    app.add_handler(conv_handler)  
+    app.add_handler(CommandHandler("modify", modify))  
+    app.add_handler(CommandHandler("settings", show_settings))  
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))  
+  
+    # Reschedule jobs on restart  
+    for chat_id, settings in group_settings.items():  
+        schedule_message(app, int(chat_id), settings)  
+  
     app.run_polling()
 
 if __name__ == "__main__":
