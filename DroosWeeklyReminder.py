@@ -178,7 +178,13 @@ async def choose_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     group_settings[str(chat_id)] = settings
     save_settings(group_settings)
-    schedule_message(context, chat_id, settings)
+
+    # Get the running event loop here
+    loop = asyncio.get_running_loop()
+
+    # Pass the loop to schedule_message
+    schedule_message(context, chat_id, settings, loop)
+
     await update.message.reply_text(f"Schedule set! I'll send your message at {t} Riyadh time as requested.")
     return ConversationHandler.END
 
