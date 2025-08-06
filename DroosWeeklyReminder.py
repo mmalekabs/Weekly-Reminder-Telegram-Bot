@@ -69,22 +69,22 @@ def schedule_message(context, chat_id, settings):
     # Store bot reference
     bot = context.bot
 
-    def send_msg():
-        # Use asyncio.run to handle the async call
-        async def send_message():
-            try:
-                await bot.send_message(chat_id=chat_id, text=message)
-                logger.info(f"Message sent successfully to {chat_id}")
-            except Exception as e:
-                logger.error(f"Failed to send message: {e}")
-
-        # Run in a new event loop
-        try:
-            asyncio.run(send_message())
-        except RuntimeError:
-            # If there's already a loop running, use run_coroutine_threadsafe
-            loop = asyncio.get_event_loop()
-            asyncio.run_coroutine_threadsafe(send_message(), loop)
+    def send_msg():  
+        async def send_message():  
+            try:  
+                await bot.send_message(chat_id=chat_id, text=message)  
+                logger.info(f"Message sent successfully to {chat_id}")  
+            except Exception as e:  
+                logger.error(f"Failed to send message: {e}")  
+  
+        try:  
+            loop = asyncio.get_running_loop()  
+        except RuntimeError:  
+            # No running loop in this thread, get the main loop from the bot application  
+            loop = asyncio.get_event_loop()  
+  
+        # Schedule the coroutine thread-safe  
+        asyncio.run_coroutine_threadsafe(send_message(), loop)
 
     if repeat == "daily":
         scheduler.add_job(send_msg, "cron", hour=hour, minute=minute, id=job_id)
