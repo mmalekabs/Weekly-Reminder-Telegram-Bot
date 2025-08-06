@@ -214,7 +214,7 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
 def main():  
     # Configure request with longer timeout and retry  
     request = HTTPXRequest(  
-        connection_pool_size=8,  
+        connection_pool_size=50,  
         read_timeout=30,  
         write_timeout=30,  
         connect_timeout=30,  
