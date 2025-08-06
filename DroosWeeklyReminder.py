@@ -56,19 +56,16 @@ def save_settings(settings):
 group_settings = load_settings()
 
 # --- SCHEDULING ---
-def schedule_message(context, chat_id, settings):
-    job_id = f"{chat_id}_msg"
-    # Remove old jobs for this chat
-    for job in scheduler.get_jobs():
-        if job.id.startswith(job_id):
-            scheduler.remove_job(job.id)
-    repeat = settings["repeat"]
-    message = settings["message"]
-    hour, minute = map(int, settings["time"].split(":"))
-
-    # Store bot reference
-    bot = context.bot
-
+def schedule_message(context, chat_id, settings, loop):  
+    job_id = f"{chat_id}_msg"  
+    for job in scheduler.get_jobs():  
+        if job.id.startswith(job_id):  
+            scheduler.remove_job(job.id)  
+    repeat = settings["repeat"]  
+    message = settings["message"]  
+    hour, minute = map(int, settings["time"].split(":"))  
+    bot = context.bot  
+  
     def send_msg():  
         async def send_message():  
             try:  
@@ -77,23 +74,17 @@ def schedule_message(context, chat_id, settings):
             except Exception as e:  
                 logger.error(f"Failed to send message: {e}")  
   
-        try:  
-            loop = asyncio.get_running_loop()  
-        except RuntimeError:  
-            # No running loop in this thread, get the main loop from the bot application  
-            loop = asyncio.get_event_loop()  
+        # Use the main event loop passed from main thread  
+        asyncio.run_coroutine_threadsafe(send_message(), loop)  
   
-        # Schedule the coroutine thread-safe  
-        asyncio.run_coroutine_threadsafe(send_message(), loop)
-
-    if repeat == "daily":
-        scheduler.add_job(send_msg, "cron", hour=hour, minute=minute, id=job_id)
-    elif repeat == "weekly":
-        scheduler.add_job(send_msg, "cron", day_of_week=settings["day"], hour=hour, minute=minute, id=job_id)
-    elif repeat == "monthly":
-        scheduler.add_job(send_msg, "cron", day=settings["day"], hour=hour, minute=minute, id=job_id)
-    elif repeat == "custom":
-        for d in settings["days"]:
+    if repeat == "daily":  
+        scheduler.add_job(send_msg, "cron", hour=hour, minute=minute, id=job_id)  
+    elif repeat == "weekly":  
+        scheduler.add_job(send_msg, "cron", day_of_week=settings["day"], hour=hour, minute=minute, id=job_id)  
+    elif repeat == "monthly":  
+        scheduler.add_job(send_msg, "cron", day=settings["day"], hour=hour, minute=minute, id=job_id)  
+    elif repeat == "custom":  
+        for d in settings["days"]:  
             scheduler.add_job(send_msg, "cron", day_of_week=d, hour=hour, minute=minute, id=f"{job_id}_{d}")
 
 # --- COMMANDS ---
@@ -222,6 +213,15 @@ def main():
     )  
       
     app = ApplicationBuilder().token(BOT_TOKEN).request(request).build()  
+  
+    # Get the running event loop from the main thread  
+    loop = asyncio.get_event_loop()  
+  
+    # When rescheduling jobs on restart, pass the loop  
+    for chat_id, settings in group_settings.items():  
+        schedule_message(app, int(chat_id), settings, loop)  
+  
+    app.run_polling() 
   
     conv_handler = ConversationHandler(  
         entry_points=[CommandHandler("setday", setday)],  
