@@ -202,48 +202,44 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
 
 # --- MAIN ---
-def main():  
-    # Configure request with longer timeout and retry  
-    request = HTTPXRequest(  
-        connection_pool_size=50,  
-        read_timeout=30,  
-        write_timeout=30,  
-        connect_timeout=30,  
-        pool_timeout=30  
-    )  
-      
-    app = ApplicationBuilder().token(BOT_TOKEN).request(request).build()  
-  
-    # Get the running event loop from the main thread  
-    loop = asyncio.get_event_loop()  
-  
-    # When rescheduling jobs on restart, pass the loop  
-    for chat_id, settings in group_settings.items():  
-        schedule_message(app, int(chat_id), settings, loop)  
-  
-    app.run_polling() 
-  
-    conv_handler = ConversationHandler(  
-        entry_points=[CommandHandler("setday", setday)],  
-        states={  
-            CHOOSING_REPEAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_repeat)],  
-            CHOOSING_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_day)],  
-            SETTING_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_message)],  
-            CHOOSING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_time)],  
-        },  
-        fallbacks=[CommandHandler("setday", setday)],  
-    )  
-  
-    app.add_handler(CommandHandler("start", start))  
-    app.add_handler(conv_handler)  
-    app.add_handler(CommandHandler("modify", modify))  
-    app.add_handler(CommandHandler("settings", show_settings))  
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))  
-  
-    # Reschedule jobs on restart  
-    for chat_id, settings in group_settings.items():  
-        schedule_message(app, int(chat_id), settings)  
-  
+def main():
+    # Configure request with longer timeout and larger connection pool
+    request = HTTPXRequest(
+        connection_pool_size=50,
+        read_timeout=30,
+        write_timeout=30,
+        connect_timeout=30,
+        pool_timeout=30
+    )
+
+    app = ApplicationBuilder().token(BOT_TOKEN).request(request).build()
+
+    # Add handlers BEFORE starting polling
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("setday", setday)],
+        states={
+            CHOOSING_REPEAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_repeat)],
+            CHOOSING_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_day)],
+            SETTING_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_message)],
+            CHOOSING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_time)],
+        },
+        fallbacks=[CommandHandler("setday", setday)],
+    )
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(conv_handler)
+    app.add_handler(CommandHandler("modify", modify))
+    app.add_handler(CommandHandler("settings", show_settings))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))
+
+    # Get the running event loop from the main thread
+    loop = asyncio.get_event_loop()
+
+    # Reschedule jobs on restart, passing the loop
+    for chat_id, settings in group_settings.items():
+        schedule_message(app, int(chat_id), settings, loop)
+
+    # Start polling (this blocks)
     app.run_polling()
 
 if __name__ == "__main__":
